@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+java -jar ~/.local/bin/neuralVoices/app.jar "$@"
