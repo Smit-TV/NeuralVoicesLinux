@@ -12,14 +12,16 @@ class SonicProcessor(
 ) {
 
     // Инициализируем Sonic сразу с нужными параметрами
-    private val sonic = Sonic(sampleRate, channels).apply {
-        setSpeed(speed)      // Меняет длительность, сохраняет тон (то, что обычно нужно)
-        setPitch(pitch)      // Меняет тон, сохраняет длительность
-        setRate(1.0f)        // Varispeed (как винил). Оставляем 1.0, если не нужен эффект "бурундука" + ускорение
-        setVolume(volume)
-        setQuality(0)        // 0 = быстрее, 1 = качественнее
-        setChordPitch(false)
-    }
+    private val sonic = Sonic(sampleRate, channels)
+
+    init {
+        sonic.setSpeed(speed)      // Меняет длительность, сохраняет тон (то, что обычно нужно)
+        sonic.setPitch(pitch)      // Меняет тон, сохраняет длительность
+        sonic.setRate(1.0f)        // Varispeed (как винил). Оставляем 1.0, если не нужен эффект "бурундука" + ускорение
+        sonic.setVolume(volume)
+        sonic.setQuality(0)        // 0 = быстрее, 1 = качественнее
+        sonic.setChordPitch(false)
+        }
 
     private val bufferSize = 4096 // Стандартный размер буфера, достаточный для чтения
 
@@ -48,6 +50,16 @@ class SonicProcessor(
         } while (bytesRead > 0)
 
         return outputStream.toByteArray()
+    }
+
+    override fun toString(): String {
+        return StringBuilder()
+        .append("Sample rate: $sampleRate\n")
+        .append("channels: $channels\n")
+        .append("speed: $speed\n")
+        .append("pitch: $pitch\n")
+        .append("volume: $volume\n")
+        .toString()
     }
 
     // ================= Builder =================

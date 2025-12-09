@@ -237,7 +237,7 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
 
         val config = EmbeddedSpeechConfig.fromPath(voicePath ?: getDefaultVoicesDirectory())
         config.setSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw24Khz16BitMonoPcm)
-        config.setSpeechSynthesisVoice(voiceName, voiceLicenseOrKey ?: getLicense(voiceName, voicePath ?: getDefaultVoicesDirectory()))
+        config.setSpeechSynthesisVoice(voiceName, voiceLicenseOrKey ?: getLicense(voiceName, voicePath ?: voices[voiceName] ?: getDefaultVoicesDirectory()))
         val audioConfig = createAudioConfig()
         return SpeechSynthesizer(config, audioConfig)
     }
@@ -286,11 +286,8 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
     }
 
     fun createAudioConfig(): AudioConfig? {
-        //if (isSTDOut) {
             val outStream = AudioOutputStream.createPushStream(this)
             return AudioConfig.fromStreamOutput(outStream)
-        //}
-        return AudioConfig.fromDefaultSpeakerOutput()
     }
 
     fun run() {
