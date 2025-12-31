@@ -12,10 +12,6 @@ import com.microsoft.cognitiveservices.speech.audio.PushAudioOutputStreamCallbac
 
 import sonic.Sonic
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -42,6 +38,8 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
     }
 
     val resources = ResourceBundle.getBundle("i18n/messages")
+    // При повторном create ничего не произойдет
+    var isInitialized = false
     // Голос который будет использоваться если latinVoice и cyrillicVoice не указаны
     // Так же этот голос будет использоваться если один из выше указаных не указан
     var voice: String? = null
@@ -86,6 +84,8 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
     var sonicProcessor: SonicProcessor? = null
     // Громкость
     var volume = 1f
+    // Порт сокет сервера
+    var port = 6543
     // Аудио поток
     val format = AudioFormat(
         24000f,
@@ -97,17 +97,24 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
 
     val line = AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine
 
-    val coroutine = CoroutineScope(Dispatchers.IO)
 
-    init {
-        line.open(format)
-        line.start()
+
+        // Останавливает синтез любой речи
+    fun stop() {
+        latinVoiceSynthesizer?.StopSpeakingAsync()
+        defaultVoiceSynthesizer?.StopSpeakingAsync()
+        cyrillicVoiceSynthesizer?.StopSpeakingAsync()
     }
 
 
     // Чтобы speech dispatcher работал с NeuralVoices без задержки нужно создать сервер и скормить ему данные для озвучивания
-    fun runServer() {
-        //NeuralVoicesServer.speak(this)
+    fun runServer(args: Array<String>) {
+        val client = NeuralVoicesClient(port, isDebug)
+        if (client.isNotConnected) {
+            NeuralVoicesServer(port, isDebug, args)
+            return
+        }
+        client.send(args)
     }
 
     override fun write(data: ByteArray): Int {
@@ -254,6 +261,10 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
     // Ошибка stderr
     // Ошибка должна быть строкой из messages.properties
     fun error(stringName: String, err: String = "") {
+        if (stringName == "") {
+            System.err.println(err)
+            return
+        }
         if (err.isNotEmpty()) {
             System.err.println(MessageFormat.format(getString(stringName), err))
         } else {
@@ -291,6 +302,8 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
     }
 
     fun run() {
+        line.open(format)
+        line.start()
             log("preparing_to_speak")
 
             if (mode == MODE_DEFAULT) {
@@ -399,6 +412,69 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
         System.err.println(details.errorDetails)
         System.err.flush()
     }
+
+    fun create(args: Array<String>): Boolean {
+            var i = 0
+    while (i < args.size) {
+        val arg = args[i]
+        if (arg != "") {
+        when (arg) {
+            "-h", "--help" -> {
+                print("help")
+                return false
+            }
+            "-v", "--voice" -> voice = args.getOrNull(++i)
+            "-std" -> isSTDOut = true
+            "-vdp", "--voice-data-path" -> voiceDataPath = args.getOrNull(++i)
+            "-log" -> isDebug = true
+            "-t", "--text" -> {
+                if (!isInitialized && (text != null && text!!.trim().isNotEmpty() == true)) {
+                    break
+                }
+                if (i+1 >= args.size) {
+                    error("enter_text")
+                    return false
+                }
+                text = args.copyOfRange(i+1, args.size).joinToString(separator = " ")
+                break
+            }
+            "-l", "--license",
+            "-k", "--key" -> voiceLicense = args.getOrNull(++i)
+            "-ssml" -> isTextSSML = true
+            "-lv", "--latin-voice" -> latinVoice = args.getOrNull(++i)
+            "-cv", "--cyrillic-voice" -> cyrillicVoice = args.getOrNull(++i)
+            "-lvdp", "--latin-voice-data-path" -> latinVoiceDataPath = args.getOrNull(++i)
+            "-cvdp", "--cyrillic-voice-data-path" -> cyrillicVoiceDataPath = args.getOrNull(++i)
+            "-cvl", "--cyrillic-voice-license" -> cyrillicVoiceLicense = args.getOrNull(++i)
+            "-lvl", "--latin-voice-license" -> latinVoiceLicense = args.getOrNull(++i)
+            "-spd" -> {
+                args[i] = ""
+                port = args.getOrNull(++i)?.toIntOrNull() ?: 6543
+                args[i] = ""
+                runServer(args)
+                return false
+            }
+            "-stdin" -> {
+                text = System.`in`.bufferedReader().readText().trimEnd()
+            }
+            "-p", "--pitch" -> pitch = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
+            "-r", "--rate" -> rate = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
+            "-V", "--volume" -> volume = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
+            else -> {
+                error("unknown_argument", arg)
+                return false
+            }
+        }
+    }
+        ++i
+    }
+
+    if (!isInitialized) {
+        init()
+        isInitialized = true
+    }
+    return true
+    }
 }
 
      fun main(args: Array<String>) {
@@ -408,54 +484,11 @@ class NeuralVoices : PushAudioOutputStreamCallback() {
         return
     }
 
-    var i = 0
-    while (i < args.size) {
-        val arg = args[i]
-        when (arg) {
-            "-h", "--help" -> {
-                nv.print("help")
-                return
-            }
-            "-v", "--voice" -> nv.voice = args.getOrNull(++i)
-            "-std" -> nv.isSTDOut = true
-            "-vdp", "--voice-data-path" -> nv.voiceDataPath = args.getOrNull(++i)
-            "-log" -> nv.isDebug = true
-            "-t", "--text" -> {
-                if (nv.text != null && nv.text!!.trim().isNotEmpty() == true) {
-                    break
-                }
-                if (i+1 >= args.size) {
-                    nv.error("enter_text")
-                    return
-                }
-                nv.text = args.copyOfRange(i+1, args.size).joinToString(separator = " ")
-                break
-            }
-            "-l", "--license",
-            "-k", "--key" -> nv.voiceLicense = args.getOrNull(++i)
-            "-ssml" -> nv.isTextSSML = true
-            "-lv", "--latin-voice" -> nv.latinVoice = args.getOrNull(++i)
-            "-cv", "--cyrillic-voice" -> nv.cyrillicVoice = args.getOrNull(++i)
-            "-lvdp", "--latin-voice-data-path" -> nv.latinVoiceDataPath = args.getOrNull(++i)
-            "-cvdp", "--cyrillic-voice-data-path" -> nv.cyrillicVoiceDataPath = args.getOrNull(++i)
-            "-cvl", "--cyrillic-voice-license" -> nv.cyrillicVoiceLicense = args.getOrNull(++i)
-            "-lvl", "--latin-voice-license" -> nv.latinVoiceLicense = args.getOrNull(++i)
-            "-spd" -> nv.runServer()
-            "-stdin" -> {
-                nv.text = System.`in`.bufferedReader().readText().trimEnd()
-            }
-            "-p", "--pitch" -> nv.pitch = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
-            "-r", "--rate" -> nv.rate = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
-            "-V", "--volume" -> nv.volume = args.getOrNull(++i)?.toFloatOrNull() ?: 1f
-            else -> {
-                nv.error("unknown_argument", arg)
-                return
-            }
-        }
-        ++i
+// Если этот запрос на синтез отправлен на обработку в сервер сокет
+    if (!nv.create(args)) {
+        return
     }
 
-    nv.init()
 
     if (nv.defaultVoiceSynthesizer == null && nv.mode == NeuralVoices.MODE_DEFAULT) {
         nv.error("enter_voice_name")

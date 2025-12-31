@@ -20,8 +20,6 @@ repositories {
 
 dependencies {
 
-    // Для демона
-    implementation("io.ktor:ktor-network:3.0.0")
 
     // microsoft 
     implementation("com.microsoft.cognitiveservices.speech:client-sdk-embedded:1.47.0@jar")

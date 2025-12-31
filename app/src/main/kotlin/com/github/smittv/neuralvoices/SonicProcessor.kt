@@ -19,7 +19,7 @@ class SonicProcessor(
         sonic.setPitch(pitch)      // Меняет тон, сохраняет длительность
         sonic.setRate(1.0f)        // Varispeed (как винил). Оставляем 1.0, если не нужен эффект "бурундука" + ускорение
         sonic.setVolume(volume)
-        sonic.setQuality(0)        // 0 = быстрее, 1 = качественнее
+        sonic.setQuality(1)        // 0 = быстрее, 1 = качественнее
         sonic.setChordPitch(false)
         }
 
